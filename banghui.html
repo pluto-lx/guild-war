@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双帮会帮战管理系统</title>
+    <style>
+        :root {
+            --ghost: #FF0000;     /* 鬼王-红 */
+            --cloud: #1E90FF;     /* 青云-蓝 */
+            --incense: #FFD700;   /* 焚香-黄 */
+            --joy: #9370DB;       /* 合欢-紫 */
+            --healer: #32CD32;    /* 灵汐-绿 */
+            --admin-red: #FF4444; /* 管理警示色 */
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4A90E2, #2E5984);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .tab-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #e0e0e0;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .form-section {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .player-item {
+            padding: 8px;
+            margin: 4px 0;
+            border-radius: 4px;
+        }
+
+        .remove-btn {
+            color: var(--admin-red);
+            margin-left: 10px;
+            cursor: pointer;
+        }
+
+        .group-box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid var(--healer);
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 id="battleDate">帮战报名系统</h1>
+        <div class="tab-container">
+            <div class="tab active" onclick="switchGuild('ciqui')">辞归</div>
+            <div class="tab" onclick="switchGuild('cimeng')">辞梦</div>
+        </div>
+    </div>
+
+    <div class="form-section">
+        <div class="input-group">
+            <label>玩家姓名：<input type="text" id="playerName" placeholder="游戏ID"></label>
+            <label>选择职业：
+                <select id="playerClass">
+                    <option value="灵汐">灵汐（治疗）</option>
+                    <option value="煞鬼王">煞鬼王</option>
+                    <option value="罡鬼王">罡鬼王</option>
+                    <option value="雷青云">雷青云</option>
+                    <option value="剑青云">剑青云</option>
+                    <option value="合欢">合欢</option>
+                    <option value="炎焚香">炎焚香</option>
+                    <option value="咒焚香">咒焚香</option>
+                </select>
+            </label>
+            <button onclick="addPlayer()">添加玩家</button>
+        </div>
+
+        <div class="players-list">
+            <h3>已报名（<span id="playerCount">0</span>/100）待命：<span id="reserveCount">0</span></h3>
+            <div id="registeredPlayers"></div>
+        </div>
+
+        <button onclick="autoGroup()" style="margin-top:15px;">生成编队</button>
+        <div id="groupsContainer"></div>
+    </div>
+
+    <script>
+        // 配置项
+        const CONFIG = {
+            password: 'admin2024',  // 管理密码
+            maxMain: 100,           // 正式成员上限
+            maxReserve: 50,         // 待命成员上限
+            groupSize: 5,           // 每队人数
+            maxGroups: 5            // 最大组数
+        };
+
+        // 初始化数据
+        let currentGuild = 'ciqui';
+        const guildData = {
+            ciqui: { main: [], reserve: [] },
+            cimeng: { main: [], reserve: [] }
+        };
+
+        // 核心功能
+        function getNextFriday() {
+            const date = new Date();
+            date.setDate(date.getDate() + ((5 - date.getDay() + 7) % 7));
+            return `${date.getFullYear()}年${date.getMonth()+1}月${date.getDate()}日`;
+        }
+
+        function addPlayer() {
+            const name = document.getElementById('playerName').value.trim();
+            const className = document.getElementById('playerClass').value;
+            
+            if (!name) return alert("请输入玩家姓名");
+            
+            const data = guildData[currentGuild];
+            const player = {
+                name,
+                className,
+                role: className === '灵汐' ? '治疗' : '输出',
+                time: new Date().toLocaleString()
+            };
+
+            data.main.length < CONFIG.maxMain ? 
+                data.main.push(player) : 
+                data.reserve.length < CONFIG.maxReserve && data.reserve.push(player);
+            
+            updateUI();
+            document.getElementById('playerName').value = '';
+        }
+
+        function autoGroup() {
+            const data = guildData[currentGuild];
+            const groups = [];
+            
+            // 生成正式编队
+            for (let i=0; i<Math.min(data.main.length, CONFIG.maxGroups*25); i+=CONFIG.groupSize) {
+                const group = data.main.slice(i, i+CONFIG.groupSize);
+                groups.push(createGroupDOM(i/CONFIG.groupSize +1, group));
+            }
+            
+            // 显示编队
+            const container = document.getElementById('groupsContainer');
+            container.innerHTML = groups.join('');
+        }
+
+        // 辅助函数
+        function createGroupDOM(index, players) {
+            return `
+                <div class="group-box">
+                    <h3>第${index}队（${players.length}人）</h3>
+                    ${players.map(p => `
+                        <div class="player-item" style="color:${getColor(p.className)}">
+                            ${p.name} 
+                            <span>${p.className.replace(/鬼王$/, '鬼王')}</span>
+                            ${isAdmin ? `<span class="remove-btn" onclick="removePlayer(${index}, true)">×</span>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function getColor(className) {
+            const colorMap = {
+                '灵汐': 'var(--healer)',
+                '煞鬼王': 'var(--ghost)', 
+                '罡鬼王': 'var(--ghost)',
+                '雷青云': 'var(--cloud)',
+                '剑青云': 'var(--cloud)',
+                '合欢': 'var(--joy)',
+                '焚香': 'var(--incense)'
+            };
+            return colorMap[className] || '#333';
+        }
+
+        // 初始化
+        document.getElementById('battleDate').textContent = `${getNextFriday()} 帮战`;
+        updateUI();
+    </script>
+</body>
+</html>
