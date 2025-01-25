@@ -3,20 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>双帮会帮战管理系统</title>
+    <title>双帮会智能帮战系统</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <style>
         :root {
-            --ghost: #FF0000;     /* 鬼王-红 */
-            --cloud: #1E90FF;     /* 青云-蓝 */
-            --incense: #FFD700;   /* 焚香-黄 */
-            --joy: #9370DB;       /* 合欢-紫 */
-            --healer: #32CD32;    /* 灵汐-绿 */
-            --admin-red: #FF4444; /* 管理警示色 */
+            --ghost: #FF0000;     --cloud: #1E90FF;    
+            --incense: #FFD700;   --joy: #9370DB;     
+            --healer: #32CD32;    --admin-red: #FF4444;
+            --bg-color: #f0f2f5;  --table-border: #ddd;
         }
 
         body {
             font-family: 'Microsoft YaHei', sans-serif;
-            background: #f0f2f5;
+            background: var(--bg-color);
             margin: 0;
             padding: 20px;
         }
@@ -27,6 +26,15 @@
             padding: 20px;
             border-radius: 12px;
             margin-bottom: 20px;
+            position: relative;
+        }
+
+        .admin-controls {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            display: flex;
+            gap: 10px;
         }
 
         .tab-container {
@@ -55,29 +63,136 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
+        .input-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        input, select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover { background: #45a049; }
+        .admin-btn { background: var(--admin-red) !important; }
+        .admin-btn:hover { background: #cc0000 !important; }
+
+        .players-list {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
         .player-item {
             padding: 8px;
-            margin: 4px 0;
+            margin: 5px 0;
             border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .remove-btn {
             color: var(--admin-red);
-            margin-left: 10px;
             cursor: pointer;
+            display: none;
         }
 
-        .group-box {
+        .team-table {
+            margin: 20px 0;
+            border-collapse: collapse;
+            width: 100%;
             background: white;
-            padding: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+
+        .team-table th {
+            background: #4A90E2;
+            color: white;
+            padding: 12px;
+            min-width: 240px;
+        }
+
+        .team-table td {
+            border: 1px solid var(--table-border);
+            padding: 10px;
+            height: 60px;
+            vertical-align: top;
+        }
+
+        .team-header {
+            font-weight: bold;
+            color: var(--admin-red);
+            margin-bottom: 5px;
+        }
+
+        .team-member {
+            margin: 3px 0;
+            padding: 5px;
+            border-radius: 3px;
+            background: #f8f9fa;
+        }
+
+        .healer-mark {
+            color: var(--healer);
+            font-weight: bold;
+        }
+
+        .admin-mode .remove-btn { display: inline-block; }
+        .admin-tools { display: none; }
+        .admin-mode .admin-tools { display: flex; gap: 10px; }
+        .generate-btn { display: none; }
+        .admin-mode .generate-btn { display: inline-block; }
+
+        @media print {
+            body { background: white; }
+            .admin-controls, .tab-container, .form-section > :not(#groupsContainer) {
+                display: none !important;
+            }
+            #groupsContainer {
+                width: 100% !important;
+                margin: 0;
+                padding: 0;
+            }
+        }
+
+        .export-loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px 30px;
             border-radius: 8px;
-            border-left: 4px solid var(--healer);
-            margin: 10px 0;
+            display: none;
+            z-index: 999;
         }
     </style>
 </head>
 <body>
     <div class="header">
+        <div class="admin-controls">
+            <input type="password" id="adminPwd" placeholder="管理密码" style="width:120px;">
+            <button onclick="toggleAdmin()" id="adminLogin">管理登录</button>
+            <button onclick="toggleAdmin()" class="admin-btn" style="display:none;">退出管理</button>
+        </div>
         <h1 id="battleDate">帮战报名系统</h1>
         <div class="tab-container">
             <div class="tab active" onclick="switchGuild('ciqui')">辞归</div>
@@ -87,8 +202,12 @@
 
     <div class="form-section">
         <div class="input-group">
-            <label>玩家姓名：<input type="text" id="playerName" placeholder="游戏ID"></label>
-            <label>选择职业：
+            <div>
+                <label>玩家姓名：</label>
+                <input type="text" id="playerName" placeholder="输入游戏ID">
+            </div>
+            <div>
+                <label>选择职业：</label>
                 <select id="playerClass">
                     <option value="灵汐">灵汐（治疗）</option>
                     <option value="煞鬼王">煞鬼王</option>
@@ -99,32 +218,38 @@
                     <option value="炎焚香">炎焚香</option>
                     <option value="咒焚香">咒焚香</option>
                 </select>
-            </label>
+            </div>
             <button onclick="addPlayer()">添加玩家</button>
+        </div>
+
+        <div class="admin-tools">
+            <button class="admin-btn" onclick="clearData()">清空数据</button>
+            <button onclick="exportData()">导出图片</button>
+            <button class="generate-btn" onclick="autoGroup()">生成编队</button>
         </div>
 
         <div class="players-list">
             <h3>已报名（<span id="playerCount">0</span>/100）待命：<span id="reserveCount">0</span></h3>
             <div id="registeredPlayers"></div>
         </div>
-
-        <button onclick="autoGroup()" style="margin-top:15px;">生成编队</button>
+        
         <div id="groupsContainer"></div>
     </div>
 
+    <div class="export-loading" id="exportLoading">正在生成图片，请稍候...</div>
+
     <script>
-        // 配置项
         const CONFIG = {
-            password: 'admin2024',  // 管理密码
-            maxMain: 100,           // 正式成员上限
-            maxReserve: 50,         // 待命成员上限
-            groupSize: 5,           // 每队人数
-            maxGroups: 5            // 最大组数
+            password: 'admin2024',
+            maxMain: 100,
+            maxReserve: 50,
+            groupSize: 5,
+            maxGroups: 5,
+            minHealersPerTeam: 1
         };
 
-        // 初始化数据
         let currentGuild = 'ciqui';
-        const guildData = {
+        let guildData = JSON.parse(localStorage.getItem('guildData')) || {
             ciqui: { main: [], reserve: [] },
             cimeng: { main: [], reserve: [] }
         };
@@ -147,12 +272,16 @@
                 name,
                 className,
                 role: className === '灵汐' ? '治疗' : '输出',
-                time: new Date().toLocaleString()
+                timestamp: Date.now()
             };
 
-            data.main.length < CONFIG.maxMain ? 
-                data.main.push(player) : 
-                data.reserve.length < CONFIG.maxReserve && data.reserve.push(player);
+            if (data.main.length < CONFIG.maxMain) {
+                data.main.push(player);
+            } else if (data.reserve.length < CONFIG.maxReserve) {
+                data.reserve.push(player);
+            } else {
+                alert("报名人数已满！");
+            }
             
             updateUI();
             document.getElementById('playerName').value = '';
@@ -160,50 +289,226 @@
 
         function autoGroup() {
             const data = guildData[currentGuild];
-            const groups = [];
-            
-            // 生成正式编队
-            for (let i=0; i<Math.min(data.main.length, CONFIG.maxGroups*25); i+=CONFIG.groupSize) {
-                const group = data.main.slice(i, i+CONFIG.groupSize);
-                groups.push(createGroupDOM(i/CONFIG.groupSize +1, group));
-            }
-            
-            // 显示编队
             const container = document.getElementById('groupsContainer');
-            container.innerHTML = groups.join('');
+            container.innerHTML = '';
+
+            const healers = data.main.filter(p => p.role === '治疗');
+            const dps = data.main.filter(p => p.role !== '治疗');
+            const totalPlayers = healers.length + dps.length;
+
+            // 智能分配逻辑
+            let teams = [];
+            
+            // 第一阶段：分配治疗
+            healers.forEach((healer, index) => {
+                if (index < Math.ceil(totalPlayers / CONFIG.groupSize)) {
+                    teams[index] = [healer];
+                } else {
+                    const targetTeam = teams.find(t => 
+                        t.filter(p => p.role === '治疗').length < CONFIG.minHealersPerTeam
+                    ) || teams[index % teams.length];
+                    targetTeam.push(healer);
+                }
+            });
+
+            // 第二阶段：分配DPS
+            let dpsIndex = 0;
+            teams.forEach(team => {
+                while (team.length < CONFIG.groupSize && dpsIndex < dps.length) {
+                    team.push(dps[dpsIndex++]);
+                }
+            });
+
+            // 第三阶段：处理剩余玩家
+            while (dpsIndex < dps.length) {
+                const newTeam = [];
+                while (newTeam.length < CONFIG.groupSize && dpsIndex < dps.length) {
+                    newTeam.push(dps[dpsIndex++]);
+                }
+                teams.push(newTeam);
+            }
+
+            generateTeamTable(teams, container);
+
+            // 统计信息
+            const stats = teams.reduce((acc, team) => {
+                acc.totalTeams++;
+                const healersInTeam = team.filter(p => p.role === '治疗').length;
+                if (healersInTeam === 0) acc.teamsWithoutHealer++;
+                if (healersInTeam > 1) acc.teamsWithExtraHealer++;
+                return acc;
+            }, { totalTeams: 0, teamsWithoutHealer: 0, teamsWithExtraHealer: 0 });
+
+            if (stats.teamsWithoutHealer > 0) {
+                alert(`警告：${stats.teamsWithoutHealer}个队伍缺少治疗！`);
+            }
+            if (stats.teamsWithExtraHealer > 0) {
+                alert(`提示：${stats.teamsWithExtraHealer}个队伍有额外治疗`);
+            }
         }
 
-        // 辅助函数
-        function createGroupDOM(index, players) {
-            return `
-                <div class="group-box">
-                    <h3>第${index}队（${players.length}人）</h3>
-                    ${players.map(p => `
-                        <div class="player-item" style="color:${getColor(p.className)}">
-                            ${p.name} 
-                            <span>${p.className.replace(/鬼王$/, '鬼王')}</span>
-                            ${isAdmin ? `<span class="remove-btn" onclick="removePlayer(${index}, true)">×</span>` : ''}
-                        </div>
-                    `).join('')}
+        // 图片导出功能
+        async function exportData() {
+            const loading = document.getElementById('exportLoading');
+            try {
+                loading.style.display = 'block';
+                
+                const cloneContainer = document.getElementById('groupsContainer').cloneNode(true);
+                cloneContainer.style.width = '1280px';
+                cloneContainer.style.padding = '20px';
+                document.body.appendChild(cloneContainer);
+
+                const canvas = await html2canvas(cloneContainer, {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#FFFFFF'
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = `帮战编队_${currentGuild}_${new Date().toLocaleDateString()}.png`;
+                link.href = imgData;
+                link.click();
+
+                document.body.removeChild(cloneContainer);
+            } catch (error) {
+                alert('图片生成失败: ' + error.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function generateTeamTable(teams, container) {
+            container.innerHTML = '';
+            const totalGroups = Math.ceil(teams.length / 5);
+            
+            for (let g = 0; g < totalGroups; g++) {
+                const table = document.createElement('table');
+                table.className = 'team-table';
+
+                const header = table.createTHead().insertRow();
+                header.innerHTML = `<th colspan="5"><div class="team-header">第 ${g+1} 团</div></th>`;
+
+                const titleRow = table.insertRow();
+                for (let t = 0; t < 5; t++) {
+                    const teamIndex = g * 5 + t;
+                    titleRow.innerHTML += teamIndex < teams.length ? 
+                        `<th>第 ${teamIndex + 1} 队 (${teams[teamIndex].length}人)</th>` : 
+                        '<th></th>';
+                }
+
+                for (let r = 0; r < CONFIG.groupSize; r++) {
+                    const row = table.insertRow();
+                    for (let c = 0; c < 5; c++) {
+                        const teamIndex = g * 5 + c;
+                        const cell = row.insertCell();
+                        const team = teams[teamIndex];
+                        
+                        if (team && team[r]) {
+                            const player = team[r];
+                            cell.innerHTML = `
+                                <div class="team-member" style="color:${getColor(player.className)}">
+                                    ${player.name}<br>
+                                    <small>${getDisplayName(player.className)}</small>
+                                    ${player.role === '治疗' ? '<span class="healer-mark">🌟</span>' : ''}
+                                </div>`;
+                        } else {
+                            cell.innerHTML = '<div class="team-member" style="color:#999">空缺</div>';
+                        }
+                    }
+                }
+                container.appendChild(table);
+            }
+        }
+
+        // 管理员功能
+        function toggleAdmin() {
+            const pwd = document.getElementById('adminPwd').value;
+            const isAdminMode = document.body.classList.contains('admin-mode');
+            
+            if(isAdminMode || pwd === CONFIG.password) {
+                document.body.classList.toggle('admin-mode');
+                document.getElementById('adminLogin').style.display = 
+                    isAdminMode ? 'inline-block' : 'none';
+                document.querySelector('.admin-btn').style.display = 
+                    isAdminMode ? 'none' : 'inline-block';
+                document.getElementById('adminPwd').value = '';
+                updateUI();
+            } else {
+                alert("密码错误！");
+            }
+        }
+
+        function removePlayer(index) {
+            if(!confirm("确定要移除该玩家吗？")) return;
+            const data = guildData[currentGuild];
+            const [removed] = data.main.splice(index, 1);
+            data.reserve = data.reserve.filter(p => p.name !== removed.name);
+            autoFillVacancies();
+            updateUI();
+            autoGroup();
+        }
+
+        function autoFillVacancies() {
+            const data = guildData[currentGuild];
+            while(data.main.length < CONFIG.maxMain && data.reserve.length > 0) {
+                data.main.push(data.reserve.shift());
+            }
+        }
+
+        function clearData() {
+            if(confirm("确定要清空当前帮会的所有数据吗？")) {
+                guildData[currentGuild] = { main: [], reserve: [] };
+                updateUI();
+                autoGroup();
+            }
+        }
+
+        // 辅助功能
+        function updateUI() {
+            const data = guildData[currentGuild];
+            const list = document.getElementById('registeredPlayers');
+            
+            list.innerHTML = data.main.map((player, index) => `
+                <div class="player-item" style="color:${getColor(player.className)}">
+                    <span>${player.name} - ${getDisplayName(player.className)}</span>
+                    <span class="remove-btn" onclick="removePlayer(${index})">× 移除</span>
                 </div>
-            `;
+            `).join('');
+            
+            document.getElementById('playerCount').textContent = data.main.length;
+            document.getElementById('reserveCount').textContent = data.reserve.length;
+        }
+
+        function getDisplayName(className) {
+            return className.replace(/鬼王$/, '鬼王');
         }
 
         function getColor(className) {
             const colorMap = {
                 '灵汐': 'var(--healer)',
-                '煞鬼王': 'var(--ghost)', 
-                '罡鬼王': 'var(--ghost)',
-                '雷青云': 'var(--cloud)',
-                '剑青云': 'var(--cloud)',
-                '合欢': 'var(--joy)',
-                '焚香': 'var(--incense)'
+                '煞鬼王': 'var(--ghost)', '罡鬼王': 'var(--ghost)',
+                '雷青云': 'var(--cloud)', '剑青云': 'var(--cloud)',
+                '合欢': 'var(--joy)', 
+                '炎焚香': 'var(--incense)', '咒焚香': 'var(--incense)'
             };
             return colorMap[className] || '#333';
         }
 
+        function switchGuild(guild) {
+            currentGuild = guild;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            updateUI();
+            autoGroup();
+        }
+
         // 初始化
         document.getElementById('battleDate').textContent = `${getNextFriday()} 帮战`;
+        setInterval(() => {
+            localStorage.setItem('guildData', JSON.stringify(guildData));
+        }, 3000);
         updateUI();
     </script>
 </body>
